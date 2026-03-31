@@ -2,459 +2,927 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>StablecoinWatch — Depeg Monitor</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oracle Integrity Dashboard</title>
 <style>
-  :root {
-    --bg: #0a0e1a;
-    --surface: #111827;
-    --surface2: #1a2035;
-    --border: #1e2d45;
-    --accent: #3b82f6;
-    --accent-glow: rgba(59,130,246,0.15);
-    --green: #10b981;
-    --red: #ef4444;
-    --yellow: #f59e0b;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font);
-    min-height: 100vh;
-    line-height: 1.5;
-  }
-  /* Header */
-  .header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 32px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 1.2rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-  }
-  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
-  .header-right { display: flex; align-items: center; gap: 20px; }
-  .last-update { font-size: 0.8rem; color: var(--muted); }
-  .refresh-btn {
-    background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 8px; cursor: pointer;
-    font-size: 0.85rem; font-weight: 600; transition: opacity 0.2s;
-  }
-  .refresh-btn:hover { opacity: 0.85; }
-  /* Layout */
-  .container { max-width: 1400px; margin: 0 auto; padding: 32px; }
-  /* Stats Bar */
-  .stats-bar {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-  .stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-  }
-  .stat-value { font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: 6px; }
-  .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-  .stat-green { color: var(--green); }
-  .stat-red { color: var(--red); }
-  .stat-blue { color: var(--accent); }
-  /* Alert Banner */
-  .alert-banner {
-    background: rgba(239,68,68,0.1);
-    border: 1px solid rgba(239,68,68,0.4);
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
-    display: none;
-  }
-  .alert-banner.active { display: flex; align-items: center; gap: 12px; }
-  .alert-banner-text { font-weight: 600; color: var(--red); }
-  /* Prices Grid */
-  .section-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin-bottom: 16px;
-  }
-  .prices-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-  .coin-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 20px;
-    transition: border-color 0.3s, box-shadow 0.3s;
-    cursor: pointer;
-  }
-  .coin-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow); }
-  .coin-card.depegged {
-    border-color: rgba(239,68,68,0.5);
-    box-shadow: 0 0 20px rgba(239,68,68,0.1);
-    animation: redpulse 2s infinite;
-  }
-  @keyframes redpulse { 0%,100%{box-shadow:0 0 20px rgba(239,68,68,0.1);} 50%{box-shadow:0 0 30px rgba(239,68,68,0.25);} }
-  .coin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  .coin-symbol { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; }
-  .status-badge {
-    font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 20px;
-    text-transform: uppercase; letter-spacing: 0.05em;
-  }
-  .badge-stable { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
-  .badge-depegged { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
-  .coin-price { font-size: 1.6rem; font-weight: 800; margin-bottom: 4px; }
-  .coin-peg { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
-  .deviation-bar-wrap { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 6px; }
-  .deviation-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
-  .bar-green { background: var(--green); }
-  .bar-yellow { background: var(--yellow); }
-  .bar-red { background: var(--red); }
-  .deviation-pct { font-size: 0.8rem; color: var(--muted); }
-  /* Chart modal */
-  .modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-    z-index: 1000; align-items: center; justify-content: center;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
-    padding: 28px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
-  }
-  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-  .modal-title { font-size: 1.2rem; font-weight: 800; }
-  .modal-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.5rem; line-height: 1; }
-  canvas { width: 100% !important; }
-  /* Depeg History */
-  .depeg-table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left; font-size: 0.75rem; color: var(--muted); text-transform: uppercase;
-    letter-spacing: 0.06em; padding: 10px 14px; border-bottom: 1px solid var(--border);
-  }
-  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--surface2); }
-  .dir-below { color: var(--red); font-weight: 600; }
-  .dir-above { color: var(--yellow); font-weight: 600; }
-  .empty-state { color: var(--muted); text-align: center; padding: 40px; font-size: 0.9rem; }
-  /* Tab area */
-  .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 24px;
-  }
-  @media (max-width: 900px) {
-    .stats-bar { grid-template-columns: repeat(2,1fr); }
-    .bottom-grid { grid-template-columns: 1fr; }
-    .container { padding: 16px; }
-    .header { padding: 12px 16px; }
-  }
-  @media (max-width: 500px) {
-    .stats-bar { grid-template-columns: 1fr 1fr; }
-  }
-  .spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .error-notice { color: var(--yellow); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 12px 16px; font-size: 0.85rem; margin-bottom: 16px; display: none; }
-  .error-notice.visible { display: block; }
+:root {
+  --bg: #080c14;
+  --bg2: #0d1220;
+  --surface: #111827;
+  --surface2: #162033;
+  --border: #1e2d47;
+  --border2: #243452;
+  --accent: #3b82f6;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --purple: #a855f7;
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+
+/* ── Header ── */
+.header{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 24px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:200;height:56px;
+}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1rem;letter-spacing:-.02em}
+.logo-pulse{width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.header-right{display:flex;align-items:center;gap:12px}
+.badge{font-size:.7rem;padding:3px 8px;border-radius:20px;font-weight:700;letter-spacing:.04em}
+.badge-green{background:rgba(16,185,129,.15);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+.badge-red{background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.badge-yellow{background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.3)}
+.upd{font-size:.75rem;color:var(--muted)}
+.refresh-btn{background:var(--accent);border:none;color:#fff;padding:6px 14px;border-radius:8px;
+  cursor:pointer;font-weight:600;font-size:.8rem;transition:opacity .2s}
+.refresh-btn:hover{opacity:.85}
+
+/* ── Search bar ── */
+.search-wrap{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;gap:8px}
+.search-input{flex:1;background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);padding:8px 14px;border-radius:8px;font-size:.85rem;max-width:420px}
+.search-input:focus{outline:none;border-color:var(--accent)}
+.search-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+  padding:8px 14px;border-radius:8px;cursor:pointer;font-size:.8rem}
+.search-results{
+  position:absolute;top:100px;left:24px;z-index:300;
+  background:var(--surface);border:1px solid var(--border2);border-radius:12px;
+  min-width:360px;max-height:320px;overflow-y:auto;display:none;
+}
+.search-result-item{padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;font-size:.85rem}
+.search-result-item:hover{background:var(--surface2)}
+.search-result-item:last-child{border-bottom:none}
+
+/* ── Layout ── */
+.main{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 56px - 48px)}
+@media(max-width:900px){.main{grid-template-columns:1fr}}
+
+/* ── Sidebar ── */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:20px 0;overflow-y:auto}
+.sidebar-section{margin-bottom:24px}
+.sidebar-label{font-size:.65rem;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.1em;padding:0 16px;margin-bottom:8px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;
+  border-left:3px solid transparent;font-size:.85rem;transition:background .15s;
+}
+.nav-item:hover{background:var(--surface2)}
+.nav-item.active{border-left-color:var(--accent);background:rgba(59,130,246,.08);color:var(--accent)}
+.nav-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.nav-count{margin-left:auto;font-size:.7rem;background:var(--surface2);padding:2px 6px;border-radius:10px;color:var(--muted)}
+
+.source-card{
+  margin:4px 12px;background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:12px;cursor:pointer;transition:border-color .2s;
+}
+.source-card:hover{border-color:var(--accent)}
+.source-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.source-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.source-name{font-weight:700;font-size:.85rem}
+.source-meta{font-size:.72rem;color:var(--muted)}
+.source-status{margin-left:auto;font-size:.65rem;font-weight:700}
+.status-ok{color:var(--green)}
+.status-err{color:var(--red)}
+
+/* ── Content area ── */
+.content{overflow-y:auto;padding:24px}
+
+/* ── Stat cards ── */
+.stats-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:24px}
+@media(max-width:1200px){.stats-row{grid-template-columns:repeat(3,1fr)}}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+.stat-val{font-size:1.6rem;font-weight:900;line-height:1;margin-bottom:4px}
+.stat-lbl{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.sv-blue{color:var(--accent)}
+.sv-green{color:var(--green)}
+.sv-red{color:var(--red)}
+.sv-yellow{color:var(--yellow)}
+.sv-purple{color:var(--purple)}
+
+/* ── Section headers ── */
+.section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.section-title{font-size:.75rem;font-weight:800;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--muted)}
+.section-link{font-size:.75rem;color:var(--accent);cursor:pointer}
+
+/* ── Alert banners ── */
+.alert-bar{
+  background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.35);
+  border-radius:10px;padding:12px 16px;margin-bottom:16px;display:none;
+  align-items:center;gap:10px;font-size:.85rem;
+}
+.alert-bar.show{display:flex}
+.alert-bar-text{color:var(--red);font-weight:600}
+
+/* ── Price table ── */
+.price-table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;
+  padding:8px 12px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:.83rem}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--surface2);cursor:pointer}
+.sym-cell{font-weight:800;font-size:.9rem}
+.src-chip{
+  display:inline-block;padding:2px 7px;border-radius:6px;font-size:.7rem;
+  font-weight:700;margin:1px;
+}
+.dev-pill{
+  font-size:.72rem;padding:2px 8px;border-radius:12px;font-weight:600;white-space:nowrap
+}
+.dev-ok{background:rgba(16,185,129,.12);color:var(--green)}
+.dev-warn{background:rgba(245,158,11,.12);color:var(--yellow)}
+.dev-bad{background:rgba(239,68,68,.12);color:var(--red)}
+
+/* ── Severity bar ── */
+.sev-wrap{display:flex;align-items:center;gap:6px;font-size:.75rem}
+.sev-bar{height:6px;border-radius:3px;background:var(--border);width:80px;overflow:hidden}
+.sev-fill{height:100%;border-radius:3px;transition:width .4s}
+
+/* ── Cards ── */
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:24px}
+.price-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:16px;cursor:pointer;transition:border-color .2s;
+}
+.price-card:hover{border-color:var(--accent)}
+.price-card.depegged{border-color:rgba(239,68,68,.5);animation:redglow 2s infinite}
+.price-card.disagreed{border-color:rgba(245,158,11,.5)}
+@keyframes redglow{0%,100%{box-shadow:0 0 16px rgba(239,68,68,.1)}50%{box-shadow:0 0 28px rgba(239,68,68,.3)}}
+.pc-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pc-sym{font-weight:900;font-size:1rem}
+.pc-price{font-size:1.4rem;font-weight:900;margin-bottom:2px}
+.pc-peg{font-size:.75rem;color:var(--muted);margin-bottom:10px}
+.pc-sources{display:flex;flex-wrap:wrap;gap:4px}
+
+/* ── Source breakdown ── */
+.src-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:.8rem}
+.src-row-name{display:flex;align-items:center;gap:6px}
+.src-mini-dot{width:7px;height:7px;border-radius:50%}
+
+/* ── Modal ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;
+  align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:20px;
+  padding:28px;width:92%;max-width:680px;max-height:88vh;overflow-y:auto}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.modal-title{font-size:1.1rem;font-weight:900}
+.modal-close{background:none;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;line-height:1}
+canvas{width:100%!important}
+
+/* ── Views ── */
+.view{display:none}
+.view.active{display:block}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:2px;background:var(--surface2);border-radius:10px;padding:4px;
+  margin-bottom:20px;width:fit-content}
+.tab{padding:7px 16px;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--muted)}
+.tab.active{background:var(--surface);color:var(--text)}
+
+/* ── Chain browser ── */
+.chain-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:24px}
+.chain-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer}
+.chain-card:hover{border-color:var(--border2)}
+.chain-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.chain-color{width:10px;height:10px;border-radius:50%}
+.chain-name{font-weight:800}
+.chain-meta{font-size:.75rem;color:var(--muted)}
+
+/* ── Misc ── */
+.spinner{width:20px;height:20px;border:3px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{color:var(--muted);text-align:center;padding:32px;font-size:.85rem}
+.tag{font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase}
+.tag-stable{background:rgba(16,185,129,.12);color:var(--green)}
+.tag-depeg{background:rgba(239,68,68,.12);color:var(--red)}
+.tag-dis{background:rgba(245,158,11,.12);color:var(--yellow)}
+.tag-coin{background:rgba(59,130,246,.1);color:var(--accent)}
+.duration{font-size:.72rem;color:var(--muted)}
 </style>
 </head>
 <body>
 
+<!-- Header -->
 <div class="header">
   <div class="logo">
-    <div class="logo-dot"></div>
-    StablecoinWatch
+    <div class="logo-pulse"></div>
+    Oracle Integrity Dashboard
   </div>
   <div class="header-right">
-    <span class="last-update" id="lastUpdate">Loading...</span>
-    <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+    <span class="badge badge-green" id="hdrSources">5 sources</span>
+    <span class="badge badge-red" id="hdrDis" style="display:none">0 disagreements</span>
+    <span class="upd" id="hdrTime">Loading...</span>
+    <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
   </div>
 </div>
 
-<div class="container">
+<!-- Search -->
+<div class="search-wrap" style="position:relative">
+  <input class="search-input" id="searchInput" placeholder="Search any coin (BTC, Ethereum, USDT...)"
+    oninput="handleSearch(this.value)" autocomplete="off">
+  <button class="search-btn" onclick="doSearch()">Search</button>
+  <div class="search-results" id="searchResults"></div>
+</div>
 
-  <!-- Error notice -->
-  <div class="error-notice" id="errorNotice"></div>
+<!-- Main layout -->
+<div class="main">
 
-  <!-- Alert banner -->
-  <div class="alert-banner" id="alertBanner">
-    <span style="font-size:1.4rem;">🚨</span>
-    <span class="alert-banner-text" id="alertBannerText"></span>
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Views</div>
+      <div class="nav-item active" onclick="showView('overview',this)">
+        <span>🏠</span> Overview
+      </div>
+      <div class="nav-item" onclick="showView('stablecoins',this)">
+        <span>💲</span> Stablecoins
+        <span class="nav-count" id="navDepeg">0 depegged</span>
+      </div>
+      <div class="nav-item" onclick="showView('allcoins',this)">
+        <span>📊</span> All Coins
+      </div>
+      <div class="nav-item" onclick="showView('disagreements',this)">
+        <span>⚠️</span> Disagreements
+        <span class="nav-count" id="navDis">0</span>
+      </div>
+      <div class="nav-item" onclick="showView('chains',this)">
+        <span>⛓</span> Chains
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Oracle Sources</div>
+      <div id="sourceCards"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Chains</div>
+      <div id="chainNav"></div>
+    </div>
   </div>
 
-  <!-- Stats -->
-  <div class="stats-bar" id="statsBar">
-    <div class="stat-card"><div class="stat-value stat-blue" id="statCoins">—</div><div class="stat-label">Coins Tracked</div></div>
-    <div class="stat-card"><div class="stat-value stat-green" id="statStable">—</div><div class="stat-label">Stable Now</div></div>
-    <div class="stat-card"><div class="stat-value stat-red" id="statDepegged">—</div><div class="stat-label">Depegged Now</div></div>
-    <div class="stat-card"><div class="stat-value stat-blue" id="statSubs">—</div><div class="stat-label">Subscribers</div></div>
-  </div>
+  <!-- Content -->
+  <div class="content">
 
-  <!-- Live Prices -->
-  <div class="section-title">Live Prices</div>
-  <div class="prices-grid" id="pricesGrid">
-    <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;">Fetching prices...</p></div>
-  </div>
+    <!-- Overview -->
+    <div id="view-overview" class="view active">
+      <div class="stats-row" id="statsRow"></div>
 
-  <!-- Bottom Panels -->
-  <div class="bottom-grid">
-    <div class="panel">
-      <div class="section-title">Depeg Events — Last 50</div>
-      <div class="depeg-table-wrap">
+      <!-- Depeg alert bar -->
+      <div class="alert-bar" id="depegAlertBar">
+        <span style="font-size:1.2rem">🚨</span>
+        <span class="alert-bar-text" id="depegAlertText"></span>
+      </div>
+      <!-- Disagreement alert bar -->
+      <div class="alert-bar" id="disAlertBar" style="border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.06)">
+        <span style="font-size:1.2rem">⚠️</span>
+        <span class="alert-bar-text" style="color:var(--yellow)" id="disAlertText"></span>
+      </div>
+
+      <div class="section-hdr">
+        <div class="section-title">Stablecoins</div>
+      </div>
+      <div class="cards-grid" id="stablecoinCards"></div>
+
+      <div class="section-hdr">
+        <div class="section-title">Major Assets</div>
+      </div>
+      <div class="cards-grid" id="majorCards"></div>
+    </div>
+
+    <!-- Stablecoins detail -->
+    <div id="view-stablecoins" class="view">
+      <div class="section-hdr">
+        <div class="section-title">Stablecoin Monitor</div>
+      </div>
+      <div class="price-table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Coin</th>
-              <th>Price</th>
-              <th>Peg</th>
-              <th>Deviation</th>
-              <th>Direction</th>
-              <th>Time</th>
+              <th>Symbol</th><th>Consensus</th>
+              <th>CoinGecko</th><th>Binance</th><th>Pyth</th><th>Chainlink</th><th>API3</th>
+              <th>Deviation</th><th>Status</th>
             </tr>
           </thead>
-          <tbody id="depegTableBody">
-            <tr><td colspan="6" class="empty-state">No depeg events recorded yet.</td></tr>
-          </tbody>
+          <tbody id="stableTableBody"></tbody>
+        </table>
+      </div>
+
+      <br>
+      <div class="section-hdr"><div class="section-title">Depeg History</div></div>
+      <div class="price-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Coin</th><th>Price</th><th>Deviation</th><th>Direction</th><th>Severity</th><th>Duration</th><th>Status</th></tr>
+          </thead>
+          <tbody id="depegHistoryBody"></tbody>
         </table>
       </div>
     </div>
-    <div class="panel">
-      <div class="section-title">About</div>
-      <p style="font-size:0.88rem;color:var(--muted);line-height:1.8;">
-        StablecoinWatch monitors major stablecoins for depeg events every <strong style="color:var(--text);">5 minutes</strong> using CoinGecko's public API.<br><br>
-        <strong style="color:var(--text);">Monitored:</strong> USDT, USDC, DAI, FRAX, TUSD, PYUSD, cNGN, bNGN<br><br>
-        A depeg is triggered when price deviates <strong style="color:var(--text);">≥1%</strong> from the target peg.<br><br>
-        African stablecoins (cNGN, bNGN) are tracked against the implied USD/NGN rate.<br><br>
-        <strong style="color:var(--text);">Telegram Bot:</strong> Get real-time alerts directly to your phone when a depeg is detected. Use <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;">/subscribe</code> in the bot.
-      </p>
-    </div>
-  </div>
 
+    <!-- All Coins -->
+    <div id="view-allcoins" class="view">
+      <div class="section-hdr">
+        <div class="section-title">All Tracked Coins</div>
+        <div id="allCoinsCount" style="font-size:.75rem;color:var(--muted)"></div>
+      </div>
+      <div class="price-table-wrap">
+        <table>
+          <thead>
+            <tr><th>Symbol</th><th>Consensus</th><th>Sources</th><th>Agreement</th></tr>
+          </thead>
+          <tbody id="allCoinsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Disagreements -->
+    <div id="view-disagreements" class="view">
+      <div class="section-hdr">
+        <div class="section-title">Oracle Disagreements</div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('active',this)">Active</div>
+        <div class="tab" onclick="switchTab('history',this)">History</div>
+      </div>
+      <div id="disActive">
+        <div class="price-table-wrap">
+          <table>
+            <thead>
+              <tr><th>Symbol</th><th>Median</th><th>Max Gap</th><th>Leading</th><th>Lagging</th><th>Severity</th><th>Since</th></tr>
+            </thead>
+            <tbody id="disActiveBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="disHistory" style="display:none">
+        <div class="price-table-wrap">
+          <table>
+            <thead>
+              <tr><th>Symbol</th><th>Max Gap</th><th>Leading</th><th>Lagging</th><th>Severity</th><th>First Seen</th><th>Status</th></tr>
+            </thead>
+            <tbody id="disHistoryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chains -->
+    <div id="view-chains" class="view">
+      <div class="section-hdr">
+        <div class="section-title">Supported Chains</div>
+      </div>
+      <div class="chain-grid" id="chainGrid"></div>
+    </div>
+
+  </div><!-- /content -->
 </div>
 
-<!-- Chart Modal -->
-<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+<!-- Coin detail modal -->
+<div class="modal-bg" id="modalBg" onclick="closeModal(event)">
   <div class="modal">
     <div class="modal-header">
-      <div class="modal-title" id="modalTitle">Price Chart</div>
+      <div class="modal-title" id="modalTitle">Coin Detail</div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
-    <canvas id="chartCanvas" height="200"></canvas>
+    <div id="modalBody"></div>
+    <br>
+    <canvas id="modalChart" height="180"></canvas>
   </div>
 </div>
 
 <script>
+// ── State ──────────────────────────────────────────────────────────────────
+let priceData = {};
+let overviewData = {};
 let chartInstance = null;
 
-async function fetchJSON(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
+const SOURCE_COLORS = {
+  coingecko: '#8CC63F',
+  binance:   '#F0B90B',
+  pyth:      '#9945FF',
+  chainlink: '#375BD2',
+  api3:      '#00A3FF',
+};
 
-function fmt(price, small=false) {
-  if (price === null || price === undefined) return '—';
-  if (price < 0.01) return '$' + price.toFixed(6);
-  return '$' + price.toFixed(4);
-}
+const STABLES = new Set(['USDT','USDC','DAI','FRAX','PYUSD','TUSD','BUSD','cNGN','bNGN','USDD']);
+const MAJORS  = ['BTC','ETH','BNB','SOL','AVAX','MATIC','ARB','OP','SEI','LINK','UNI'];
 
+// ── Formatting ─────────────────────────────────────────────────────────────
+function fmt(p) {
+  if (p==null||p===undefined) return '—';
+  if (p<0.0001) return '$'+p.toFixed(8);
+  if (p<1) return '$'+p.toFixed(6);
+  if (p<100) return '$'+p.toFixed(4);
+  return '$'+p.toLocaleString(undefined,{maximumFractionDigits:2});
+}
+function fmtPct(v) { return (v*100).toFixed(3)+'%'; }
 function timeSince(iso) {
   if (!iso) return '—';
-  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
-  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
-  return d.toLocaleDateString();
+  const d=new Date(iso+(iso.endsWith('Z')?'':'Z'));
+  const s=Math.floor((Date.now()-d)/1000);
+  if (s<60) return s+'s ago';
+  if (s<3600) return Math.floor(s/60)+'m ago';
+  if (s<86400) return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
 }
-
 function shortDate(iso) {
   if (!iso) return '—';
-  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
-  return d.toLocaleString();
+  return new Date(iso+(iso.endsWith('Z')?'':'Z')).toLocaleString();
+}
+function sevColor(s) {
+  if (s<=2) return 'var(--green)';
+  if (s<=4) return '#22c55e';
+  if (s<=6) return 'var(--yellow)';
+  if (s<=8) return '#f97316';
+  return 'var(--red)';
+}
+function sevBar(s) {
+  return `<div class="sev-wrap">
+    <div class="sev-bar"><div class="sev-fill" style="width:${s*10}%;background:${sevColor(s)}"></div></div>
+    <span>${s}/10</span>
+  </div>`;
+}
+function devClass(pct) {
+  if (pct<0.1) return 'dev-ok';
+  if (pct<0.5) return 'dev-warn';
+  return 'dev-bad';
+}
+
+// ── Views ──────────────────────────────────────────────────────────────────
+function showView(name, el) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if (el) el.classList.add('active');
+}
+
+function switchTab(which, el) {
+  document.getElementById('disActive').style.display = which==='active'?'':'none';
+  document.getElementById('disHistory').style.display = which==='history'?'':'none';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Fetching ───────────────────────────────────────────────────────────────
+async function j(url) {
+  const r=await fetch(url); if(!r.ok) throw new Error(r.status); return r.json();
+}
+
+async function loadOverview() {
+  try { overviewData = await j('/api/overview'); renderSources(); renderChains(); } catch(e){}
 }
 
 async function loadPrices() {
-  const data = await fetchJSON('/api/prices');
-  const errEl = document.getElementById('errorNotice');
-  if (data.error) {
-    errEl.textContent = '⚠️ CoinGecko API error: ' + data.error;
-    errEl.classList.add('visible');
-  } else {
-    errEl.classList.remove('visible');
-  }
-
-  const prices = data.prices || [];
-  const grid = document.getElementById('pricesGrid');
-
-  if (!prices.length) {
-    grid.innerHTML = '<div class="empty-state">No price data yet. Prices load every 5 minutes.</div>';
-    return;
-  }
-
-  const depegged = prices.filter(p => p.is_depegged);
-  const banner = document.getElementById('alertBanner');
-  const bannerText = document.getElementById('alertBannerText');
-  if (depegged.length) {
-    banner.classList.add('active');
-    bannerText.textContent = `ALERT: ${depegged.map(p=>p.symbol).join(', ')} ${depegged.length===1?'is':'are'} currently off-peg!`;
-  } else {
-    banner.classList.remove('active');
-  }
-
-  const sorted = [...prices].sort((a,b) => a.symbol.localeCompare(b.symbol));
-  grid.innerHTML = sorted.map(p => {
-    const dev = (p.deviation * 100);
-    const barW = Math.min(dev * 10, 100);
-    const barClass = dev < 0.5 ? 'bar-green' : dev < 1 ? 'bar-yellow' : 'bar-red';
-    const stable = !p.is_depegged;
-    return `
-      <div class="coin-card ${p.is_depegged ? 'depegged' : ''}" onclick="openChart('${p.id || p.coin_id}','${p.symbol}')">
-        <div class="coin-header">
-          <div class="coin-symbol">${p.symbol}</div>
-          <div class="status-badge ${stable ? 'badge-stable' : 'badge-depegged'}">${stable ? 'Stable' : 'Depegged'}</div>
-        </div>
-        <div class="coin-price">${fmt(p.price)}</div>
-        <div class="coin-peg">Peg: ${fmt(p.peg)}</div>
-        <div class="deviation-bar-wrap"><div class="deviation-bar ${barClass}" style="width:${barW}%"></div></div>
-        <div class="deviation-pct">Deviation: ${dev.toFixed(3)}%</div>
-      </div>`;
-  }).join('');
-
-  document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  try {
+    priceData = await j('/api/prices');
+    renderStats();
+    renderStablecoinCards();
+    renderMajorCards();
+    renderStableTable();
+    renderAllCoins();
+    renderAlertBars();
+    document.getElementById('hdrTime').textContent = 'Updated '+new Date().toLocaleTimeString();
+  } catch(e) { console.error('prices error',e); }
 }
 
-async function loadStats() {
-  const data = await fetchJSON('/api/stats');
-  document.getElementById('statCoins').textContent = data.total_coins ?? '—';
-  document.getElementById('statStable').textContent = (data.total_coins - data.depegged_now) || '—';
-  document.getElementById('statDepegged').textContent = data.depegged_now ?? '0';
-  document.getElementById('statSubs').textContent = data.total_subscribers ?? '0';
+async function loadDisagreements() {
+  try {
+    const data = await j('/api/disagreements');
+    renderDisagreements(data);
+    const active = data.active || [];
+    document.getElementById('navDis').textContent = active.length;
+    document.getElementById('hdrDis').textContent = active.length+' disagreement'+(active.length!==1?'s':'');
+    document.getElementById('hdrDis').style.display = active.length?'':'none';
+  } catch(e){}
 }
 
 async function loadDepegHistory() {
-  const data = await fetchJSON('/api/depeg-history');
-  const tbody = document.getElementById('depegTableBody');
-  if (!data.events || !data.events.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No depeg events recorded yet.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = data.events.map(e => `
-    <tr>
-      <td><strong>${e.symbol}</strong></td>
-      <td>${fmt(e.price)}</td>
-      <td>${fmt(e.peg)}</td>
-      <td>${(e.deviation*100).toFixed(3)}%</td>
-      <td class="dir-${e.direction}">${e.direction === 'below' ? '📉 Below' : '📈 Above'}</td>
-      <td style="color:var(--muted);font-size:0.8rem;">${shortDate(e.detected_at)}</td>
-    </tr>`).join('');
+  try {
+    const data = await j('/api/depeg');
+    renderDepegHistory(data.history || []);
+  } catch(e){}
 }
 
-async function openChart(coinId, symbol) {
-  document.getElementById('modalTitle').textContent = `${symbol} — Price History`;
-  document.getElementById('modalOverlay').classList.add('open');
-  document.getElementById('chartCanvas').height = 200;
-
-  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-
-  const data = await fetchJSON(`/api/chart/${coinId}`);
-  const rows = data.data || [];
-
-  const labels = rows.map(r => {
-    const d = new Date(r.checked_at + (r.checked_at.endsWith('Z') ? '' : 'Z'));
-    return d.toLocaleTimeString();
-  });
-  const prices = rows.map(r => r.price);
-  const pegs = rows.map(r => r.peg || 1);
-
-  const ctx = document.getElementById('chartCanvas').getContext('2d');
-
-  if (typeof Chart === 'undefined') {
-    await loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js');
-  }
-
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: `${symbol} Price`,
-          data: prices,
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59,130,246,0.05)',
-          borderWidth: 2,
-          pointRadius: 2,
-          tension: 0.3,
-          fill: true,
-        },
-        {
-          label: 'Peg',
-          data: pegs,
-          borderColor: '#10b981',
-          borderWidth: 1.5,
-          borderDash: [6,3],
-          pointRadius: 0,
-          tension: 0,
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      animation: false,
-      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
-      scales: {
-        x: { ticks: { color: '#475569', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#1e2d45' } },
-        y: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: '#1e2d45' } }
-      }
-    }
-  });
-}
-
-function closeModal(e) {
-  if (!e || e.target === document.getElementById('modalOverlay')) {
-    document.getElementById('modalOverlay').classList.remove('open');
-    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
-  }
-}
-
-function loadScript(src) {
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = rej;
-    document.head.appendChild(s);
-  });
+async function loadStats() {
+  try {
+    const s = await j('/api/stats');
+    document.getElementById('statSubs').textContent = s.subscribers||0;
+  } catch(e){}
 }
 
 async function loadAll() {
-  await Promise.all([loadPrices(), loadStats(), loadDepegHistory()]);
+  await Promise.all([loadOverview(), loadPrices(), loadDisagreements(), loadDepegHistory(), loadStats()]);
 }
+
+// ── Render Sources ─────────────────────────────────────────────────────────
+function renderSources() {
+  const sources = overviewData.sources || {};
+  const el = document.getElementById('sourceCards');
+  el.innerHTML = Object.entries(sources).map(([key,s])=>`
+    <div class="source-card">
+      <div class="source-header">
+        <div class="source-dot" style="background:${s.color}"></div>
+        <span class="source-name">${s.name}</span>
+        <span class="source-status status-ok">●</span>
+      </div>
+      <div class="source-meta">${s.feed_count} feeds · ${s.chains.length} chain${s.chains.length!==1?'s':''}</div>
+    </div>
+  `).join('');
+}
+
+function renderChains() {
+  const chains = overviewData.chains || {};
+  const nav = document.getElementById('chainNav');
+  nav.innerHTML = Object.entries(chains).map(([key,c])=>`
+    <div class="nav-item" onclick="showChainDetail('${key}',this)">
+      <div class="nav-dot" style="background:${c.color}"></div>
+      ${c.name}
+    </div>
+  `).join('');
+
+  const grid = document.getElementById('chainGrid');
+  grid.innerHTML = Object.entries(chains).map(([key,c])=>`
+    <div class="chain-card" onclick="showChainDetail('${key}')">
+      <div class="chain-header">
+        <div class="chain-color" style="background:${c.color}"></div>
+        <span class="chain-name">${c.name}</span>
+      </div>
+      <div class="chain-meta">Chain ID: ${c.chain_id||'—'}</div>
+      <div class="chain-meta">${c.native} native</div>
+    </div>
+  `).join('');
+}
+
+// ── Render Stats ────────────────────────────────────────────────────────────
+function renderStats() {
+  const prices = priceData.prices || {};
+  const dis = priceData.disagreements || [];
+  const deps = priceData.depeg_alerts || [];
+  const coins = Object.keys(prices).length;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-val sv-blue">${coins}</div><div class="stat-lbl">Coins Tracked</div></div>
+    <div class="stat-card"><div class="stat-val sv-purple">5</div><div class="stat-lbl">Oracle Sources</div></div>
+    <div class="stat-card"><div class="stat-val sv-green">${coins-deps.length}</div><div class="stat-lbl">Stable Now</div></div>
+    <div class="stat-card"><div class="stat-val sv-red">${deps.length}</div><div class="stat-lbl">Depegged Now</div></div>
+    <div class="stat-card"><div class="stat-val sv-yellow">${dis.length}</div><div class="stat-lbl">Disagreements</div></div>
+  `;
+}
+
+// ── Alert Bars ──────────────────────────────────────────────────────────────
+function renderAlertBars() {
+  const deps = priceData.depeg_alerts || [];
+  const dis = priceData.disagreements || [];
+  const depBar = document.getElementById('depegAlertBar');
+  const disBar = document.getElementById('disAlertBar');
+  if (deps.length) {
+    depBar.classList.add('show');
+    document.getElementById('depegAlertText').textContent =
+      `DEPEG: ${deps.map(d=>d.symbol).join(', ')} ${deps.length===1?'is':'are'} off-peg!`;
+  } else depBar.classList.remove('show');
+  if (dis.length) {
+    disBar.classList.add('show');
+    document.getElementById('disAlertText').textContent =
+      `Oracle disagreement on: ${dis.slice(0,5).map(d=>d.symbol).join(', ')}`;
+  } else disBar.classList.remove('show');
+}
+
+// ── Coin Cards ──────────────────────────────────────────────────────────────
+function makeCard(sym, priceObj, consensus, isDep, isDis) {
+  const prices = priceObj || {};
+  const median = consensus || 0;
+  const isStable = STABLES.has(sym);
+  const dev = isStable ? Math.abs(median - 1.0) : 0;
+  const devPct = dev * 100;
+  const cls = isDep?'depegged':isDis?'disagreed':'';
+  const badge = isDep
+    ? `<span class="tag tag-depeg">Depegged</span>`
+    : isDis
+      ? `<span class="tag tag-dis">Disagreement</span>`
+      : isStable
+        ? `<span class="tag tag-stable">Stable</span>`
+        : `<span class="tag tag-coin">Tracked</span>`;
+
+  const srcChips = Object.entries(prices).map(([s,p])=>
+    `<span class="src-chip" style="background:${SOURCE_COLORS[s]}20;color:${SOURCE_COLORS[s]}">${s.slice(0,4)}</span>`
+  ).join('');
+
+  let extra = '';
+  if (isStable) {
+    extra = `<div class="pc-peg">Peg $1.00 · Dev ${devPct.toFixed(3)}%</div>`;
+  }
+
+  return `
+    <div class="price-card ${cls}" onclick="openCoin('${sym}')">
+      <div class="pc-header">
+        <span class="pc-sym">${sym}</span>
+        ${badge}
+      </div>
+      <div class="pc-price">${fmt(median)}</div>
+      ${extra}
+      <div class="pc-sources">${srcChips}</div>
+    </div>`;
+}
+
+function renderStablecoinCards() {
+  const prices = priceData.prices || {};
+  const consensus = priceData.consensus || {};
+  const deps = new Set((priceData.depeg_alerts||[]).map(d=>d.symbol));
+  const dis  = new Set((priceData.disagreements||[]).map(d=>d.symbol));
+  const el = document.getElementById('stablecoinCards');
+  const syms = [...STABLES].filter(s=>prices[s]);
+  el.innerHTML = syms.length
+    ? syms.map(s=>makeCard(s,prices[s],consensus[s],deps.has(s),dis.has(s))).join('')
+    : '<div class="empty">No stablecoin data yet</div>';
+  document.getElementById('navDepeg').textContent = deps.size+' depegged';
+}
+
+function renderMajorCards() {
+  const prices = priceData.prices || {};
+  const consensus = priceData.consensus || {};
+  const dis = new Set((priceData.disagreements||[]).map(d=>d.symbol));
+  const el = document.getElementById('majorCards');
+  const syms = MAJORS.filter(s=>prices[s]);
+  el.innerHTML = syms.length
+    ? syms.map(s=>makeCard(s,prices[s],consensus[s],false,dis.has(s))).join('')
+    : '<div class="empty">No major asset data yet</div>';
+}
+
+// ── Stablecoin Table ────────────────────────────────────────────────────────
+function renderStableTable() {
+  const prices = priceData.prices || {};
+  const consensus = priceData.consensus || {};
+  const SRCS = ['coingecko','binance','pyth','chainlink','api3'];
+  const syms = [...STABLES].filter(s=>prices[s]).sort();
+  const tbody = document.getElementById('stableTableBody');
+  tbody.innerHTML = syms.map(sym=>{
+    const sp = prices[sym]||{};
+    const med = consensus[sym]||0;
+    const dev = Math.abs(med-1.0);
+    const devPct = dev*100;
+    const cls = devPct>1?'dev-bad':devPct>0.1?'dev-warn':'dev-ok';
+    const badge = dev>0.01?`<span class="tag tag-depeg">Depegged</span>`:`<span class="tag tag-stable">Stable</span>`;
+    return `<tr onclick="openCoin('${sym}')">
+      <td class="sym-cell">${sym}</td>
+      <td>${fmt(med)}</td>
+      ${SRCS.map(s=>`<td>${sp[s]!=null?fmt(sp[s]):'<span style="color:var(--muted)">—</span>'}</td>`).join('')}
+      <td><span class="dev-pill ${cls}">${devPct.toFixed(3)}%</span></td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+  if (!syms.length) tbody.innerHTML = '<tr><td colspan="10" class="empty">No data yet</td></tr>';
+}
+
+// ── All Coins ──────────────────────────────────────────────────────────────
+function renderAllCoins() {
+  const prices = priceData.prices || {};
+  const consensus = priceData.consensus || {};
+  const dis = new Set((priceData.disagreements||[]).map(d=>d.symbol));
+  const all = Object.keys(prices).sort();
+  document.getElementById('allCoinsCount').textContent = all.length + ' coins';
+  const tbody = document.getElementById('allCoinsBody');
+  tbody.innerHTML = all.map(sym=>{
+    const sp = prices[sym]||{};
+    const med = consensus[sym];
+    const srcCount = Object.keys(sp).length;
+    const hasDis = dis.has(sym);
+    const chips = Object.keys(sp).map(s=>
+      `<span class="src-chip" style="background:${SOURCE_COLORS[s]||'#666'}20;color:${SOURCE_COLORS[s]||'#aaa'}">${s.slice(0,4)}</span>`
+    ).join('');
+    return `<tr onclick="openCoin('${sym}')">
+      <td class="sym-cell">${sym}</td>
+      <td>${fmt(med)}</td>
+      <td>${chips}</td>
+      <td>${hasDis?`<span class="tag tag-dis">Disagreement</span>`:`<span class="tag tag-stable">Agrees</span>`}</td>
+    </tr>`;
+  }).join('');
+  if (!all.length) tbody.innerHTML = '<tr><td colspan="4" class="empty">No coin data yet</td></tr>';
+}
+
+// ── Disagreements ─────────────────────────────────────────────────────────
+function renderDisagreements(data) {
+  const active = data.active || [];
+  const history = data.recent || [];
+  const activeBody = document.getElementById('disActiveBody');
+  activeBody.innerHTML = active.length
+    ? active.map(d=>`<tr onclick="openCoin('${d.symbol}')">
+        <td class="sym-cell">${d.symbol}</td>
+        <td>${fmt(d.median_price)}</td>
+        <td><span class="dev-pill ${devClass(d.max_deviation_pct)}">${d.max_deviation_pct.toFixed(3)}%</span></td>
+        <td>${d.leading_source||'—'}</td><td>${d.lagging_source||'—'}</td>
+        <td>${sevBar(d.severity)}</td>
+        <td class="duration">${timeSince(d.first_seen)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7" class="empty">No active disagreements</td></tr>';
+
+  const histBody = document.getElementById('disHistoryBody');
+  histBody.innerHTML = history.length
+    ? history.map(d=>`<tr>
+        <td class="sym-cell">${d.symbol}</td>
+        <td><span class="dev-pill ${devClass(d.max_deviation_pct)}">${d.max_deviation_pct.toFixed(3)}%</span></td>
+        <td>${d.leading_source||'—'}</td><td>${d.lagging_source||'—'}</td>
+        <td>${sevBar(d.severity)}</td>
+        <td class="duration">${shortDate(d.first_seen)}</td>
+        <td>${d.is_active?`<span class="tag tag-dis">Active</span>`:`<span class="tag tag-stable">Resolved</span>`}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7" class="empty">No disagreement history yet</td></tr>';
+}
+
+// ── Depeg History ─────────────────────────────────────────────────────────
+function renderDepegHistory(history) {
+  const tbody = document.getElementById('depegHistoryBody');
+  tbody.innerHTML = history.length
+    ? history.map(d=>`<tr>
+        <td class="sym-cell">${d.symbol}</td>
+        <td>${fmt(d.price)}</td>
+        <td><span class="dev-pill ${devClass(d.deviation_pct/100)}">${d.deviation_pct.toFixed(3)}%</span></td>
+        <td>${d.direction==='below'?'📉 Below':'📈 Above'}</td>
+        <td>${sevBar(d.severity)}</td>
+        <td class="duration">${timeSince(d.first_seen)}</td>
+        <td>${d.is_active?`<span class="tag tag-depeg">Active</span>`:`<span class="tag tag-stable">Resolved</span>`}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7" class="empty">No depeg events recorded</td></tr>';
+}
+
+// ── Chain Detail ────────────────────────────────────────────────────────────
+async function showChainDetail(key, el) {
+  showView('chains', null);
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelector('[onclick*="chains"]').classList.add('active');
+  const grid = document.getElementById('chainGrid');
+  grid.innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+  try {
+    const data = await j(`/api/chain/${key}`);
+    const chain = data.chain || {};
+    const coins = data.coins || [];
+    grid.innerHTML = `
+      <div style="grid-column:1/-1;margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+          <div style="width:12px;height:12px;border-radius:50%;background:${chain.color}"></div>
+          <h2 style="font-size:1.1rem;font-weight:900">${chain.name}</h2>
+          <span class="badge badge-green">${coins.length} feeds</span>
+        </div>
+      </div>
+    `;
+    coins.forEach(c=>{
+      const el2 = document.createElement('div');
+      el2.className='price-card';
+      el2.onclick=()=>openCoin(c.symbol);
+      const chips=Object.keys(c.sources||{}).map(s=>
+        `<span class="src-chip" style="background:${SOURCE_COLORS[s]||'#666'}20;color:${SOURCE_COLORS[s]||'#aaa'}">${s.slice(0,4)}</span>`
+      ).join('');
+      el2.innerHTML=`
+        <div class="pc-header"><span class="pc-sym">${c.symbol}</span></div>
+        <div class="pc-price">${fmt(c.consensus)}</div>
+        <div class="pc-sources">${chips}</div>`;
+      grid.appendChild(el2);
+    });
+    if (!coins.length) grid.innerHTML+='<div class="empty">No feed data for this chain yet</div>';
+  } catch(e) {
+    grid.innerHTML='<div class="empty">Error loading chain data</div>';
+  }
+}
+
+// ── Coin Modal ─────────────────────────────────────────────────────────────
+async function openCoin(symbol) {
+  document.getElementById('modalBg').classList.add('open');
+  document.getElementById('modalTitle').textContent = symbol + ' — Oracle Comparison';
+  document.getElementById('modalBody').innerHTML = '<div class="empty"><div class="spinner"></div></div>';
+  if (chartInstance) { chartInstance.destroy(); chartInstance=null; }
+
+  try {
+    const data = await j(`/api/coin/${symbol}`);
+    const prices = data.prices||{};
+    const median = data.median||0;
+    const dis = data.disagreement;
+
+    let html = `<div style="margin-bottom:16px">
+      <div style="font-size:.75rem;color:var(--muted);margin-bottom:4px">Consensus Price</div>
+      <div style="font-size:2rem;font-weight:900">${fmt(median)}</div>`;
+    if (dis) html+=`<div style="margin-top:6px"><span class="tag tag-dis">⚠️ Oracle disagreement — ${dis.max_deviation_pct.toFixed(3)}% gap</span></div>`;
+    html+='</div>';
+
+    html+='<div style="margin-bottom:16px">';
+    Object.entries(prices).sort().forEach(([src,p])=>{
+      const dev = median ? Math.abs(p-median)/median*100 : 0;
+      const flag = dev>0.5?` <span style="color:var(--red)">⚠️ ${dev.toFixed(3)}% off</span>`:'';
+      html+=`<div class="src-row">
+        <div class="src-row-name">
+          <div class="src-mini-dot" style="background:${SOURCE_COLORS[src]||'#888'}"></div>
+          <span style="font-weight:600;text-transform:capitalize">${src}</span>
+        </div>
+        <span>${fmt(p)}${flag}</span>
+      </div>`;
+    });
+    html+='</div>';
+
+    if (data.is_stablecoin) {
+      const dev=Math.abs(median-1.0)*100;
+      html+=`<div style="margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:8px">
+        <div style="font-size:.75rem;color:var(--muted)">Stablecoin Status</div>
+        <div style="margin-top:4px">
+          Peg: $1.00 · Deviation: <span class="${dev>1?'sv-red':dev>0.1?'sv-yellow':'sv-green'}" style="font-weight:700">${dev.toFixed(4)}%</span>
+        </div>
+      </div>`;
+    }
+    document.getElementById('modalBody').innerHTML = html;
+
+    // Chart
+    const hist = data.history||[];
+    if (hist.length>1) {
+      await ensureChart();
+      const bySrc={};
+      hist.forEach(r=>{ (bySrc[r.source]=bySrc[r.source]||[]).push(r); });
+      const labels=[...new Set(hist.map(r=>r.checked_at))].sort().map(t=>{
+        const d=new Date(t+(t.endsWith('Z')?'':'Z'));
+        return d.toLocaleTimeString();
+      });
+      const datasets=Object.entries(bySrc).map(([src,rows])=>({
+        label:src,data:rows.map(r=>r.price),borderColor:SOURCE_COLORS[src]||'#888',
+        backgroundColor:'transparent',borderWidth:2,pointRadius:2,tension:.3
+      }));
+      chartInstance=new Chart(document.getElementById('modalChart').getContext('2d'),{
+        type:'line',data:{labels,datasets},
+        options:{responsive:true,animation:false,
+          plugins:{legend:{labels:{color:'#94a3b8',font:{size:10}}}},
+          scales:{x:{ticks:{color:'#475569',maxTicksLimit:6,font:{size:9}},grid:{color:'#1e2d47'}},
+                  y:{ticks:{color:'#475569',font:{size:9}},grid:{color:'#1e2d47'}}}}
+      });
+    }
+  } catch(e) {
+    document.getElementById('modalBody').innerHTML='<div class="empty">Error loading coin data</div>';
+  }
+}
+
+function closeModal(e) {
+  if (!e||e.target===document.getElementById('modalBg')) {
+    document.getElementById('modalBg').classList.remove('open');
+    if (chartInstance){chartInstance.destroy();chartInstance=null;}
+  }
+}
+
+function ensureChart() {
+  return new Promise(res=>{
+    if (typeof Chart!=='undefined') return res();
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+    s.onload=res; document.head.appendChild(s);
+  });
+}
+
+// ── Search ──────────────────────────────────────────────────────────────────
+let searchTimer=null;
+function handleSearch(q) {
+  clearTimeout(searchTimer);
+  if (!q.trim()) { document.getElementById('searchResults').style.display='none'; return; }
+  searchTimer=setTimeout(()=>doSearch(q),400);
+}
+
+async function doSearch(q) {
+  q=q||document.getElementById('searchInput').value.trim();
+  if (!q) return;
+  const el=document.getElementById('searchResults');
+  el.style.display='block';
+  el.innerHTML='<div class="search-result-item">Searching...</div>';
+  try {
+    const data=await j(`/api/search?q=${encodeURIComponent(q)}`);
+    const items=[...((data.coingecko||[]).slice(0,5).map(r=>({sym:r.symbol,name:r.name,src:'CoinGecko',id:r.id}))),
+                 ...((data.binance||[]).slice(0,5).map(r=>({sym:r.symbol,name:r.pair||r.symbol,src:'Binance',price:r.price})))];
+    if (!items.length){el.innerHTML='<div class="search-result-item">No results found</div>';return;}
+    el.innerHTML=items.map(it=>`
+      <div class="search-result-item" onclick="openCoin('${it.sym}')">
+        <span><strong>${it.sym}</strong> — ${it.name}</span>
+        <span style="color:var(--muted);font-size:.7rem">${it.src} ${it.price?fmt(it.price):''}</span>
+      </div>`).join('');
+  } catch(e){el.innerHTML='<div class="search-result-item">Search error</div>';}
+}
+
+document.addEventListener('click',e=>{
+  if (!e.target.closest('.search-wrap')) document.getElementById('searchResults').style.display='none';
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+let _statSubs=0;
+// Expose for stats
+document.getElementById('statsRow').innerHTML = `
+  <div class="stat-card"><div class="stat-val sv-blue">—</div><div class="stat-lbl">Coins Tracked</div></div>
+  <div class="stat-card"><div class="stat-val sv-purple">5</div><div class="stat-lbl">Oracle Sources</div></div>
+  <div class="stat-card"><div class="stat-val sv-green">—</div><div class="stat-lbl">Stable Now</div></div>
+  <div class="stat-card"><div class="stat-val sv-red">—</div><div class="stat-lbl">Depegged Now</div></div>
+  <div class="stat-card stat-val sv-yellow" id="statSubs">—</div>
+`;
 
 loadAll();
 setInterval(loadAll, 60000);
