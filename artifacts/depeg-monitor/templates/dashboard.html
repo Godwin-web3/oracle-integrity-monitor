@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StablecoinWatch — Depeg Monitor</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2035;
+    --border: #1e2d45;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59,130,246,0.15);
+    --green: #10b981;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  /* Header */
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .last-update { font-size: 0.8rem; color: var(--muted); }
+  .refresh-btn {
+    background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: 8px; cursor: pointer;
+    font-size: 0.85rem; font-weight: 600; transition: opacity 0.2s;
+  }
+  .refresh-btn:hover { opacity: 0.85; }
+  /* Layout */
+  .container { max-width: 1400px; margin: 0 auto; padding: 32px; }
+  /* Stats Bar */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .stat-value { font-size: 2rem; font-weight: 800; line-height: 1; margin-bottom: 6px; }
+  .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-green { color: var(--green); }
+  .stat-red { color: var(--red); }
+  .stat-blue { color: var(--accent); }
+  /* Alert Banner */
+  .alert-banner {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.4);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: none;
+  }
+  .alert-banner.active { display: flex; align-items: center; gap: 12px; }
+  .alert-banner-text { font-weight: 600; color: var(--red); }
+  /* Prices Grid */
+  .section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+  .prices-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+  .coin-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    cursor: pointer;
+  }
+  .coin-card:hover { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-glow); }
+  .coin-card.depegged {
+    border-color: rgba(239,68,68,0.5);
+    box-shadow: 0 0 20px rgba(239,68,68,0.1);
+    animation: redpulse 2s infinite;
+  }
+  @keyframes redpulse { 0%,100%{box-shadow:0 0 20px rgba(239,68,68,0.1);} 50%{box-shadow:0 0 30px rgba(239,68,68,0.25);} }
+  .coin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .coin-symbol { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; }
+  .status-badge {
+    font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 20px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .badge-stable { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid rgba(16,185,129,0.3); }
+  .badge-depegged { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .coin-price { font-size: 1.6rem; font-weight: 800; margin-bottom: 4px; }
+  .coin-peg { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+  .deviation-bar-wrap { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 6px; }
+  .deviation-bar { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  .bar-green { background: var(--green); }
+  .bar-yellow { background: var(--yellow); }
+  .bar-red { background: var(--red); }
+  .deviation-pct { font-size: 0.8rem; color: var(--muted); }
+  /* Chart modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 1000; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+    padding: 28px; width: 90%; max-width: 700px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-title { font-size: 1.2rem; font-weight: 800; }
+  .modal-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1.5rem; line-height: 1; }
+  canvas { width: 100% !important; }
+  /* Depeg History */
+  .depeg-table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 0.75rem; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .dir-below { color: var(--red); font-weight: 600; }
+  .dir-above { color: var(--yellow); font-weight: 600; }
+  .empty-state { color: var(--muted); text-align: center; padding: 40px; font-size: 0.9rem; }
+  /* Tab area */
+  .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  @media (max-width: 900px) {
+    .stats-bar { grid-template-columns: repeat(2,1fr); }
+    .bottom-grid { grid-template-columns: 1fr; }
+    .container { padding: 16px; }
+    .header { padding: 12px 16px; }
+  }
+  @media (max-width: 500px) {
+    .stats-bar { grid-template-columns: 1fr 1fr; }
+  }
+  .spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-notice { color: var(--yellow); background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 12px 16px; font-size: 0.85rem; margin-bottom: 16px; display: none; }
+  .error-notice.visible { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-dot"></div>
+    StablecoinWatch
+  </div>
+  <div class="header-right">
+    <span class="last-update" id="lastUpdate">Loading...</span>
+    <button class="refresh-btn" onclick="loadAll()">Refresh</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Error notice -->
+  <div class="error-notice" id="errorNotice"></div>
+
+  <!-- Alert banner -->
+  <div class="alert-banner" id="alertBanner">
+    <span style="font-size:1.4rem;">🚨</span>
+    <span class="alert-banner-text" id="alertBannerText"></span>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-card"><div class="stat-value stat-blue" id="statCoins">—</div><div class="stat-label">Coins Tracked</div></div>
+    <div class="stat-card"><div class="stat-value stat-green" id="statStable">—</div><div class="stat-label">Stable Now</div></div>
+    <div class="stat-card"><div class="stat-value stat-red" id="statDepegged">—</div><div class="stat-label">Depegged Now</div></div>
+    <div class="stat-card"><div class="stat-value stat-blue" id="statSubs">—</div><div class="stat-label">Subscribers</div></div>
+  </div>
+
+  <!-- Live Prices -->
+  <div class="section-title">Live Prices</div>
+  <div class="prices-grid" id="pricesGrid">
+    <div class="empty-state"><div class="spinner"></div><p style="margin-top:12px;">Fetching prices...</p></div>
+  </div>
+
+  <!-- Bottom Panels -->
+  <div class="bottom-grid">
+    <div class="panel">
+      <div class="section-title">Depeg Events — Last 50</div>
+      <div class="depeg-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Coin</th>
+              <th>Price</th>
+              <th>Peg</th>
+              <th>Deviation</th>
+              <th>Direction</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="depegTableBody">
+            <tr><td colspan="6" class="empty-state">No depeg events recorded yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="section-title">About</div>
+      <p style="font-size:0.88rem;color:var(--muted);line-height:1.8;">
+        StablecoinWatch monitors major stablecoins for depeg events every <strong style="color:var(--text);">5 minutes</strong> using CoinGecko's public API.<br><br>
+        <strong style="color:var(--text);">Monitored:</strong> USDT, USDC, DAI, FRAX, TUSD, PYUSD, cNGN, bNGN<br><br>
+        A depeg is triggered when price deviates <strong style="color:var(--text);">≥1%</strong> from the target peg.<br><br>
+        African stablecoins (cNGN, bNGN) are tracked against the implied USD/NGN rate.<br><br>
+        <strong style="color:var(--text);">Telegram Bot:</strong> Get real-time alerts directly to your phone when a depeg is detected. Use <code style="background:var(--surface2);padding:2px 6px;border-radius:4px;">/subscribe</code> in the bot.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Chart Modal -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Price Chart</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <canvas id="chartCanvas" height="200"></canvas>
+  </div>
+</div>
+
+<script>
+let chartInstance = null;
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function fmt(price, small=false) {
+  if (price === null || price === undefined) return '—';
+  if (price < 0.01) return '$' + price.toFixed(6);
+  return '$' + price.toFixed(4);
+}
+
+function timeSince(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return d.toLocaleDateString();
+}
+
+function shortDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+  return d.toLocaleString();
+}
+
+async function loadPrices() {
+  const data = await fetchJSON('/api/prices');
+  const errEl = document.getElementById('errorNotice');
+  if (data.error) {
+    errEl.textContent = '⚠️ CoinGecko API error: ' + data.error;
+    errEl.classList.add('visible');
+  } else {
+    errEl.classList.remove('visible');
+  }
+
+  const prices = data.prices || [];
+  const grid = document.getElementById('pricesGrid');
+
+  if (!prices.length) {
+    grid.innerHTML = '<div class="empty-state">No price data yet. Prices load every 5 minutes.</div>';
+    return;
+  }
+
+  const depegged = prices.filter(p => p.is_depegged);
+  const banner = document.getElementById('alertBanner');
+  const bannerText = document.getElementById('alertBannerText');
+  if (depegged.length) {
+    banner.classList.add('active');
+    bannerText.textContent = `ALERT: ${depegged.map(p=>p.symbol).join(', ')} ${depegged.length===1?'is':'are'} currently off-peg!`;
+  } else {
+    banner.classList.remove('active');
+  }
+
+  const sorted = [...prices].sort((a,b) => a.symbol.localeCompare(b.symbol));
+  grid.innerHTML = sorted.map(p => {
+    const dev = (p.deviation * 100);
+    const barW = Math.min(dev * 10, 100);
+    const barClass = dev < 0.5 ? 'bar-green' : dev < 1 ? 'bar-yellow' : 'bar-red';
+    const stable = !p.is_depegged;
+    return `
+      <div class="coin-card ${p.is_depegged ? 'depegged' : ''}" onclick="openChart('${p.id || p.coin_id}','${p.symbol}')">
+        <div class="coin-header">
+          <div class="coin-symbol">${p.symbol}</div>
+          <div class="status-badge ${stable ? 'badge-stable' : 'badge-depegged'}">${stable ? 'Stable' : 'Depegged'}</div>
+        </div>
+        <div class="coin-price">${fmt(p.price)}</div>
+        <div class="coin-peg">Peg: ${fmt(p.peg)}</div>
+        <div class="deviation-bar-wrap"><div class="deviation-bar ${barClass}" style="width:${barW}%"></div></div>
+        <div class="deviation-pct">Deviation: ${dev.toFixed(3)}%</div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
+}
+
+async function loadStats() {
+  const data = await fetchJSON('/api/stats');
+  document.getElementById('statCoins').textContent = data.total_coins ?? '—';
+  document.getElementById('statStable').textContent = (data.total_coins - data.depegged_now) || '—';
+  document.getElementById('statDepegged').textContent = data.depegged_now ?? '0';
+  document.getElementById('statSubs').textContent = data.total_subscribers ?? '0';
+}
+
+async function loadDepegHistory() {
+  const data = await fetchJSON('/api/depeg-history');
+  const tbody = document.getElementById('depegTableBody');
+  if (!data.events || !data.events.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No depeg events recorded yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.events.map(e => `
+    <tr>
+      <td><strong>${e.symbol}</strong></td>
+      <td>${fmt(e.price)}</td>
+      <td>${fmt(e.peg)}</td>
+      <td>${(e.deviation*100).toFixed(3)}%</td>
+      <td class="dir-${e.direction}">${e.direction === 'below' ? '📉 Below' : '📈 Above'}</td>
+      <td style="color:var(--muted);font-size:0.8rem;">${shortDate(e.detected_at)}</td>
+    </tr>`).join('');
+}
+
+async function openChart(coinId, symbol) {
+  document.getElementById('modalTitle').textContent = `${symbol} — Price History`;
+  document.getElementById('modalOverlay').classList.add('open');
+  document.getElementById('chartCanvas').height = 200;
+
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  const data = await fetchJSON(`/api/chart/${coinId}`);
+  const rows = data.data || [];
+
+  const labels = rows.map(r => {
+    const d = new Date(r.checked_at + (r.checked_at.endsWith('Z') ? '' : 'Z'));
+    return d.toLocaleTimeString();
+  });
+  const prices = rows.map(r => r.price);
+  const pegs = rows.map(r => r.peg || 1);
+
+  const ctx = document.getElementById('chartCanvas').getContext('2d');
+
+  if (typeof Chart === 'undefined') {
+    await loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js');
+  }
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: `${symbol} Price`,
+          data: prices,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.05)',
+          borderWidth: 2,
+          pointRadius: 2,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'Peg',
+          data: pegs,
+          borderColor: '#10b981',
+          borderWidth: 1.5,
+          borderDash: [6,3],
+          pointRadius: 0,
+          tension: 0,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      animation: false,
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        x: { ticks: { color: '#475569', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#1e2d45' } },
+        y: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: '#1e2d45' } }
+      }
+    }
+  });
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modalOverlay')) {
+    document.getElementById('modalOverlay').classList.remove('open');
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+  }
+}
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function loadAll() {
+  await Promise.all([loadPrices(), loadStats(), loadDepegHistory()]);
+}
+
+loadAll();
+setInterval(loadAll, 60000);
+</script>
+</body>
+</html>

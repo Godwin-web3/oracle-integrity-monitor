@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo using TypeScript, with a Python Flask stablecoin depeg monitoring app.
 
 ## Stack
 
@@ -11,7 +11,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
+- **Database**: PostgreSQL + Drizzle ORM (Node.js); SQLite (Python depeg monitor)
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
@@ -20,20 +20,41 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
+├── artifacts/
+│   ├── api-server/         # Express API server (Node.js)
+│   └── depeg-monitor/      # Flask stablecoin depeg monitor (Python)
+├── lib/                    # Shared libraries (Node.js)
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   └── db/                 # Drizzle ORM schema + DB connection
 ├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
+
+## Stablecoin Depeg Monitor (`artifacts/depeg-monitor/`)
+
+Python Flask web dashboard + Telegram bot for monitoring stablecoin depeg events.
+
+- **Entry**: `app.py` — starts Flask server + Telegram bot polling + APScheduler
+- **Monitor**: `monitor.py` — fetches prices from CoinGecko every 5 min, detects depeg events
+- **Bot**: `bot.py` — Telegram bot with commands: /start, /help, /subscribe, /unsubscribe, /status, /setalert
+- **Database**: `database.py` — SQLite (depeg_monitor.db) with subscribers, price_history, depeg_events tables
+- **Template**: `templates/dashboard.html` — live dashboard UI with price cards, depeg history, price charts
+- **Port**: `5000` (reads from PORT env var)
+- **Secrets required**: `TELEGRAM_BOT_TOKEN`
+
+### Tracked Stablecoins
+USDT, USDC, DAI, FRAX, TUSD, PYUSD, cNGN (Nigerian Naira stablecoin), bNGN
+
+### CoinGecko API
+Public API, no key required. Rate limited. Checks every 5 minutes.
+
+### Depeg Threshold
+Default: 1% deviation from $1.00 peg. Users can customize via `/setalert` bot command.
 
 ## TypeScript & Composite Projects
 
@@ -47,50 +68,3 @@ Every package extends `tsconfig.base.json` which sets `composite: true`. The roo
 
 - `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
 - `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
-
-## Packages
-
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
