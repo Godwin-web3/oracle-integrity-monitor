@@ -8,6 +8,7 @@ import asyncio
 import logging
 import threading
 from flask import Flask, jsonify, render_template
+from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 from database import (
     init_db, save_price_snapshots_bulk,
@@ -29,6 +30,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+CORS(app)
 
 _bot_app = None
 _bot_loop = None
@@ -133,11 +135,15 @@ def run_bot_thread():
         if not _bot_app:
             return
         _bot_loop = asyncio.get_event_loop()
-        await _bot_app.initialize()
-        await _bot_app.start()
-        await _bot_app.updater.start_polling(allowed_updates=["message"])
-        _bot_ready.set()
-        logger.info("Telegram bot started")
+        try:
+            await _bot_app.initialize()
+            await _bot_app.start()
+            await _bot_app.updater.start_polling(allowed_updates=["message"])
+            _bot_ready.set()
+            logger.info("Telegram bot started")
+        except Exception as e:
+            logger.error(f"Bot error: {e}")
+            _bot_ready.set()
         await asyncio.Event().wait()
 
     asyncio.run(_run())
